@@ -79,7 +79,7 @@ for source in "${sources[@]}"; do
 done
 
 resolved_links=()
-for link_dir in "${links[@]}"; do
+for link_dir in ${links[@]+"${links[@]}"}; do
   mkdir -p -- "$link_dir"
   link_dir="$(cd -- "$link_dir" && pwd -P)"
   case "$link_dir/" in
@@ -122,7 +122,7 @@ for installed in "$destination"/*/; do
   printf 'xz-agent-skills:%s\n' "$name" | cmp -s - "$installed/.xz-agent-skills-managed" || continue
   mv -- "$installed" "$stage/.previous/$name"
   printf 'Removed: %s\n' "$name"
-  for link_dir in "${resolved_links[@]}"; do
+  for link_dir in ${resolved_links[@]+"${resolved_links[@]}"}; do
     link="$link_dir/$name"
     if [[ -L "$link" && "$(readlink -- "$link")" == "$installed" ]]; then
       rm -- "$link"
@@ -131,7 +131,7 @@ for installed in "$destination"/*/; do
   done
 done
 
-for link_dir in "${resolved_links[@]}"; do
+for link_dir in ${resolved_links[@]+"${resolved_links[@]}"}; do
   for source in "${sources[@]}"; do
     name="${source##*/}"
     link="$link_dir/$name"
