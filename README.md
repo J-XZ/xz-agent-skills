@@ -6,15 +6,15 @@
 
 | Skill | 用途 |
 | --- | --- |
-| [bro](.agents/skills/bro/SKILL.md) | 将回复改写为简短自然的表达 |
-| [debug](.agents/skills/debug/SKILL.md) | 复现、取证、最小修复及回归验证 |
-| [how](.agents/skills/how/SKILL.md) | 只读解释代码、调用链和数据流 |
-| [why](.agents/skills/why/SKILL.md) | 调查设计缘由和历史约束 |
-| [labsafe](.agents/skills/labsafe/SKILL.md) | 学校实验平台的强制操作规则 |
-| [main-worker](.agents/skills/main-worker/SKILL.md) | 主代理核心规则、成本分层调度、独立审核及验收 |
-| [perf-evidence](.agents/skills/perf-evidence/SKILL.md) | 性能假设、实测及优化收益验证 |
-| [show-me-your-work](.agents/skills/show-me-your-work/SKILL.md) | 记录关键决策及证据 |
-| [work-rules](.agents/skills/work-rules/SKILL.md) | 范围、代码与文档风格、验证及用户工作保护 |
+| [bro](agents/skills/bro/SKILL.md) | 将回复改写为简短自然的表达 |
+| [debug](agents/skills/debug/SKILL.md) | 复现、取证、最小修复及回归验证 |
+| [how](agents/skills/how/SKILL.md) | 只读解释代码、调用链和数据流 |
+| [why](agents/skills/why/SKILL.md) | 调查设计缘由和历史约束 |
+| [labsafe](agents/skills/labsafe/SKILL.md) | 学校实验平台的强制操作规则 |
+| [main-worker](agents/skills/main-worker/SKILL.md) | 主代理核心规则、成本分层调度、独立审核及验收 |
+| [perf-evidence](agents/skills/perf-evidence/SKILL.md) | 性能假设、实测及优化收益验证 |
+| [show-me-your-work](agents/skills/show-me-your-work/SKILL.md) | 记录关键决策及证据 |
+| [work-rules](agents/skills/work-rules/SKILL.md) | 范围、代码与文档风格、验证及用户工作保护 |
 
 ## 安装
 
@@ -42,6 +42,16 @@
 
 `--link` 接收技能目录本身，支持重复传入。脚本自动创建目录，保留已指向本次安装的链接；遇到其他已有目录、文件或链接会报错，不覆盖。安装以每个技能为单位替换，失败时可能已完成部分技能，请修正原因后重跑；不保证整批事务回滚。
 
+### Antigravity 特殊版
+
+```bash
+./scripts/install.sh --special-antigravity --link /path/to/antigravity/skills
+```
+
+将 `--link` 后的示例路径替换为宿主的技能目录。脚本安装全部通用技能，再在暂存目录内合入 `special/antigravity/agents/skills/` 中的差异，默认安装根目录为 `${XDG_DATA_HOME:-$HOME/.local/share}/xz-agent-skills/special/antigravity`。两版可使用不同的链接目录并存。显式传入相同的 `--prefix` 会切换该安装及其已有链接使用的版本。
+
+Antigravity 通过终端运行 OpenCode v2。请在特殊版 [main-worker](special/antigravity/agents/skills/main-worker/SKILL.md) 的「OpenCode 终端委派」区域设置执行者、审核者的 `provider/model#variant`，并在 OpenCode 中配置对应提供商的访问权限。改动源文件后重新安装即可。
+
 ## 在不同客户端使用
 
 | 客户端 | 项目技能目录示例 |
@@ -54,13 +64,13 @@
 
 各客户端版本支持的发现路径、符号链接和多代理能力可能不同，以其文档为准。若客户端不跟随符号链接，复制完整技能目录。
 
-`main-worker` 和 `perf-evidence` 需要宿主支持子代理及独立审核上下文；不支持时立即报错并交还用户。各技能通过名称互相引用。
+通用版的 `main-worker` 和 `perf-evidence` 需要宿主支持子代理及独立审核上下文；不支持时立即报错并交还用户。各技能通过名称互相引用。
 
 主代理使用 `main-worker`，其中包含所有代理必须遵守的核心规则。多代理按成本分层：主代理最贵，负责拆解任务、指导、裁决和验收；执行者最便宜，按小步骤完成实现、实验和测试；审核者居中。
 
 ## 配置子代理模型
 
-技能无法指定模型，模型由运行技能的代理决定。`main-worker` 把执行者派给名为 `worker` 的子代理，审核者派给 `reviewer`；在客户端的用户级配置中定义这两个代理并指定模型，所有项目通用。未指定模型的子代理沿用主代理的模型，成本分层不生效。
+通用版由客户端配置模型。`main-worker` 把执行者派给名为 `worker` 的子代理，审核者派给 `reviewer`；在客户端的用户级配置中定义这两个代理并指定模型，所有项目通用。未指定模型的子代理沿用主代理的模型，成本分层不生效。
 
 下文 `<cheap-model>` 替换为执行者使用的最便宜且胜任的模型，`<mid-model>` 替换为审核者使用的中档模型。
 
@@ -184,7 +194,7 @@ readonly: true
 ## 维护
 
 ```text
-.agents/skills/<skill-name>/
+agents/skills/<skill-name>/
 ├── SKILL.md
 ├── scripts/       # 可选：执行脚本
 ├── references/    # 可选：按需阅读的文档
@@ -199,7 +209,7 @@ scripts/install.sh
 如已安装官方参考工具，可逐项校验：
 
 ```bash
-for skill in .agents/skills/*; do
+for skill in agents/skills/*; do
   skills-ref validate "$skill"
 done
 ```

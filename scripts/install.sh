@@ -3,12 +3,13 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: scripts/install.sh [--prefix DIR] [--link DIR]...
+Usage: scripts/install.sh [--special-antigravity] [--prefix DIR] [--link DIR]...
 
 Copy skills to PREFIX/.agents/skills and optionally link them into DIR.
 Default PREFIX: ${XDG_DATA_HOME:-$HOME/.local/share}/xz-agent-skills
 
   --prefix DIR  Set the local installation root.
+  --special-antigravity  Apply Antigravity overrides (default PREFIX: standard PREFIX/special/antigravity).
   --link DIR    Link installed skills into this skills directory (repeatable).
   -h, --help    Show this help.
 
@@ -18,10 +19,12 @@ EOF
 
 die() { printf 'Error: %s\n' "$*" >&2; exit 1; }
 
-prefix="${XDG_DATA_HOME:-${HOME:?HOME is required}/.local/share}/xz-agent-skills"
+prefix=''
+antigravity=false
 links=()
 while (($#)); do
   case "$1" in
+    --special-antigravity) antigravity=true; shift ;;
     --prefix|--link)
       (($# >= 2)) && [[ -n "$2" && "$2" != -* ]] || die "$1 requires a directory"
       if [[ "$1" == --prefix ]]; then prefix="$2"; else links+=("$2"); fi
@@ -33,7 +36,15 @@ while (($#)); do
 done
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
-source_dir="$(cd -- "$script_dir/../.agents/skills" && pwd -P)"
+source_dir="$(cd -- "$script_dir/../agents/skills" && pwd -P)"
+special_dir="$script_dir/../special/antigravity/agents/skills"
+default_prefix="${XDG_DATA_HOME:-${HOME:?HOME is required}/.local/share}/xz-agent-skills"
+if $antigravity; then
+  [[ -d "$special_dir" ]] || die "Missing Antigravity skills: $special_dir"
+  default_prefix="$default_prefix/special/antigravity"
+fi
+if [[ -d "$special_dir" ]]; then special_dir="$(cd -- "$special_dir" && pwd -P)"; fi
+prefix="${prefix:-$default_prefix}"
 shopt -s nullglob
 sources=("$source_dir"/*)
 ((${#sources[@]})) || die "No skills found in $source_dir"
@@ -41,17 +52,19 @@ for source in "${sources[@]}"; do
   name="${source##*/}"
   [[ -d "$source" && ! -L "$source" && -f "$source/SKILL.md" ]] || die "Invalid skill directory: $source"
   [[ "$name" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ && ${#name} -le 64 ]] || die "Invalid skill name: $name"
-  declared="$(awk 'NR == 1 { if ($0 != "---") exit; next } /^---$/ { exit } sub(/^name:[ \t]*/, "") { print; exit }' "$source/SKILL.md")"
+  definition="$source/SKILL.md"
+  if $antigravity && [[ -f "$special_dir/$name/SKILL.md" ]]; then definition="$special_dir/$name/SKILL.md"; fi
+  declared="$(awk 'NR == 1 { if ($0 != "---") exit; next } /^---$/ { exit } sub(/^name:[ \t]*/, "") { print; exit }' "$definition")"
   [[ "$declared" == "$name" ]] || die "Frontmatter name '$declared' does not match directory: $source"
 done
 
 mkdir -p -- "$prefix"
 prefix="$(cd -- "$prefix" && pwd -P)"
 destination="$prefix/.agents/skills"
-case "$destination/" in "$source_dir/"*) die "Installation must be outside the source skills directory" ;; esac
+case "$destination/" in "$source_dir/"*|"$special_dir/"*) die "Installation must be outside the source skills directories" ;; esac
 mkdir -p -- "$destination"
 destination="$(cd -- "$destination" && pwd -P)"
-case "$destination/" in "$source_dir/"*) die "Installation resolves into the source skills directory" ;; esac
+case "$destination/" in "$source_dir/"*|"$special_dir/"*) die "Installation resolves into a source skills directory" ;; esac
 
 lock="$prefix/.install-lock"
 mkdir -- "$lock" 2>/dev/null || die "Installation locked: $lock (if interrupted, verify no installer is running before removing it)"
@@ -71,6 +84,9 @@ for source in "${sources[@]}"; do
   target="$destination/$name"
   mkdir -- "$stage/$name"
   cp -R -- "$source/." "$stage/$name/"
+  if $antigravity && [[ -d "$special_dir/$name" ]]; then
+    cp -R -- "$special_dir/$name/." "$stage/$name/"
+  fi
   printf 'xz-agent-skills:%s\n' "$name" > "$stage/$name/.xz-agent-skills-managed"
   if [[ -e "$target" || -L "$target" ]]; then
     [[ -d "$target" && ! -L "$target" && -f "$target/.xz-agent-skills-managed" ]] || die "Unmanaged destination: $target"
@@ -83,7 +99,7 @@ for link_dir in ${links[@]+"${links[@]}"}; do
   mkdir -p -- "$link_dir"
   link_dir="$(cd -- "$link_dir" && pwd -P)"
   case "$link_dir/" in
-    "$source_dir/"*|"$destination/"*) die "Link directory must be outside source and installed skills: $link_dir" ;;
+    "$source_dir/"*|"$special_dir/"*|"$destination/"*) die "Link directory must be outside source and installed skills: $link_dir" ;;
   esac
   for source in "${sources[@]}"; do
     name="${source##*/}"
