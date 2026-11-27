@@ -1,0 +1,6 @@
+{
+  "name": "xz-agent-skills",
+  "displayName": "XZ Agent Skills",
+  "description": "Cost-tiered programming workflow skills with an OpenCode Stdio MCP server for Antigravity.",
+  "version": "0.1.0"
+}

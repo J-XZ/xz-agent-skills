@@ -1,7 +1,7 @@
 ---
 name: perf-evidence
 description: 以实测证据分析性能瓶颈和验证优化收益：提出可证伪假设，执行代表性对照实验，区分实测、推算和未知，并清理实验改动。用户问"为什么慢""瓶颈在哪""这个优化有没有用"，或要求压测、基准对比、降低延迟时使用。
-compatibility: 需要宿主能运行 main-worker 指定的 OpenCode CLI 和模型，并具备代表性负载的运行环境。
+compatibility: 需要已启用 main-worker 所需的 OpenCode MCP 服务及对应模型，并具备代表性负载的运行环境。
 ---
 
 # 性能优化实证
