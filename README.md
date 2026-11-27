@@ -41,7 +41,7 @@
   - 标准版：`~/.local/share/xz-agent-skills/.agents/skills/`
   - 特殊版：`~/.local/share/xz-agent-skills/special/antigravity/.agents/plugins/xz-agent-skills/`
 - **`--link` 规则**：可重复传入，必须指向已存在项目下的 `<project>/.agents/skills`。特殊版不会写入 `.agents/skills`，而是自动链接到同级 `<project>/.agents/plugins/xz-agent-skills`。
-- **更新覆盖**：重复执行会自动覆盖全局目录中的旧版本技能和 `--link` 处的旧符号链接；完整参数见 `./scripts/install.sh --help`。
+- **更新与切换**：重复执行会自动覆盖全局目录中的旧版本技能和 `--link` 处的旧符号链接；在同一项目切换标准版与特殊版时，自动移除另一版本遗留的受管链接（保留用户自定义技能）；完整参数见 `./scripts/install.sh --help`。
 
 ## 配置子代理模型
 

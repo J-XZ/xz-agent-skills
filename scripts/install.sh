@@ -162,11 +162,47 @@ if [[ -n "$remote_user" ]]; then
   exit 0
 fi
 
-prefix="${XDG_DATA_HOME:-${HOME:?HOME is required}/.local/share}/xz-agent-skills"
+base_prefix="${XDG_DATA_HOME:-${HOME:?HOME is required}/.local/share}/xz-agent-skills"
+mkdir -p -- "$base_prefix"
+base_prefix="$(cd -- "$base_prefix" && pwd -P)"
+prefix="$base_prefix"
 if $antigravity; then
   command -v python3 >/dev/null 2>&1 || die "python3 is required for --special-antigravity"
-  prefix="$prefix/special/antigravity"
+  prefix="$base_prefix/special/antigravity"
 fi
+
+is_managed_skill_symlink() {
+  local link="$1"
+  local name target
+  [[ -L "$link" ]] || return 1
+  name="${link##*/}"
+  target="$(readlink -- "$link")"
+  case "$target" in
+    "$base_prefix/.agents/skills/"*|"$base_prefix/special/antigravity/.agents/skills/"*)
+      return 0
+      ;;
+  esac
+  if [[ -d "$link" && -f "$link/.xz-agent-skills-managed" ]]; then
+    printf 'xz-agent-skills:%s\n' "$name" | cmp -s - "$link/.xz-agent-skills-managed" && return 0
+  fi
+  return 1
+}
+
+is_managed_plugin_symlink() {
+  local link="$1"
+  local target
+  [[ -L "$link" ]] || return 1
+  target="$(readlink -- "$link")"
+  case "$target" in
+    "$base_prefix/special/antigravity/.agents/plugins/$plugin_name")
+      return 0
+      ;;
+  esac
+  if [[ -d "$link" && -f "$link/.xz-agent-skills-managed" ]]; then
+    printf 'xz-agent-skills:plugin:%s\n' "$plugin_name" | cmp -s - "$link/.xz-agent-skills-managed" && return 0
+  fi
+  return 1
+}
 
 mkdir -p -- "$prefix"
 prefix="$(cd -- "$prefix" && pwd -P)"
@@ -249,6 +285,7 @@ PY
 
   printf 'xz-agent-skills:plugin:%s\n' "$plugin_name" > "$plugin_stage/.xz-agent-skills-managed"
 
+  resolved_proj_dirs=()
   resolved_links=()
   for proj_raw in ${project_raw_dirs[@]+"${project_raw_dirs[@]}"}; do
     [[ -d "$proj_raw" ]] || die "Project directory does not exist: $proj_raw"
@@ -264,10 +301,28 @@ PY
     if [[ -e "$link" && ! -L "$link" ]]; then
       die "Link conflict (not a symlink): $link"
     fi
+    resolved_proj_dirs+=("$proj_dir")
     resolved_links+=("$plugins_link_dir")
   done
 
   if [[ -d "$plugin_target" && ! -L "$plugin_target" ]]; then
+    for source in "${sources[@]}"; do
+      name="${source##*/}"
+      if [[ -d "$plugin_target/skills/$name" ]]; then
+        if diff -qr -- "$plugin_stage/skills/$name" "$plugin_target/skills/$name" >/dev/null; then
+          printf 'Unchanged skill: %s\n' "$name"
+        else
+          printf 'Updated skill: %s\n' "$name"
+        fi
+      else
+        printf 'Installed skill: %s\n' "$name"
+      fi
+    done
+    for old_skill in "$plugin_target/skills"/*/; do
+      old_skill="${old_skill%/}"
+      oname="${old_skill##*/}"
+      [[ -d "$plugin_stage/skills/$oname" ]] || printf 'Removed skill: %s\n' "$oname"
+    done
     if diff -qr -- "$plugin_stage" "$plugin_target" >/dev/null; then
       printf 'Unchanged: %s (plugin)\n' "$plugin_name"
     else
@@ -279,6 +334,9 @@ PY
       printf 'Updated: %s (plugin)\n' "$plugin_name"
     fi
   elif [[ -e "$plugin_target" || -L "$plugin_target" ]]; then
+    for source in "${sources[@]}"; do
+      printf 'Installed skill: %s\n' "${source##*/}"
+    done
     mv -- "$plugin_target" "$stage/.previous/$plugin_name"
     if ! mv -- "$plugin_stage" "$plugin_target"; then
       mv -- "$stage/.previous/$plugin_name" "$plugin_target"
@@ -286,9 +344,25 @@ PY
     fi
     printf 'Updated: %s (plugin)\n' "$plugin_name"
   else
+    for source in "${sources[@]}"; do
+      printf 'Installed skill: %s\n' "${source##*/}"
+    done
     mv -- "$plugin_stage" "$plugin_target"
     printf 'Installed: %s (plugin)\n' "$plugin_name"
   fi
+
+  for proj_dir in ${resolved_proj_dirs[@]+"${resolved_proj_dirs[@]}"}; do
+    old_skills_dir="$proj_dir/.agents/skills"
+    if [[ -d "$old_skills_dir" ]]; then
+      for old_link in "$old_skills_dir"/*; do
+        if is_managed_skill_symlink "$old_link"; then
+          rm -- "$old_link"
+          printf 'Unlinked: %s\n' "$old_link"
+        fi
+      done
+      rmdir -- "$old_skills_dir" 2>/dev/null || true
+    fi
+  done
 
   for plugins_link_dir in ${resolved_links[@]+"${resolved_links[@]}"}; do
     link="$plugins_link_dir/$plugin_name"
@@ -315,6 +389,7 @@ for source in "${sources[@]}"; do
   printf 'xz-agent-skills:%s\n' "$name" > "$stage/$name/.xz-agent-skills-managed"
 done
 
+resolved_proj_dirs=()
 resolved_links=()
 for proj_raw in ${project_raw_dirs[@]+"${project_raw_dirs[@]}"}; do
   [[ -d "$proj_raw" ]] || die "Project directory does not exist: $proj_raw"
@@ -333,6 +408,7 @@ for proj_raw in ${project_raw_dirs[@]+"${project_raw_dirs[@]}"}; do
       die "Link conflict (not a symlink): $link"
     fi
   done
+  resolved_proj_dirs+=("$proj_dir")
   resolved_links+=("$link_dir")
 done
 
@@ -377,6 +453,15 @@ for installed in "$destination"/*/; do
       printf 'Unlinked: %s\n' "$link"
     fi
   done
+done
+
+for proj_dir in ${resolved_proj_dirs[@]+"${resolved_proj_dirs[@]}"}; do
+  old_plugin_link="$proj_dir/.agents/plugins/$plugin_name"
+  if is_managed_plugin_symlink "$old_plugin_link"; then
+    rm -- "$old_plugin_link"
+    printf 'Unlinked: %s\n' "$old_plugin_link"
+    rmdir -- "$proj_dir/.agents/plugins" 2>/dev/null || true
+  fi
 done
 
 for link_dir in ${resolved_links[@]+"${resolved_links[@]}"}; do
