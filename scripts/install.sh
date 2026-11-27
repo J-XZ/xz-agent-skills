@@ -213,6 +213,19 @@ if $antigravity; then
 
   python_bin="$(command -v python3)"
   opencode_bin="$(command -v opencode || true)"
+  if [[ -z "$opencode_bin" ]]; then
+    for candidate in \
+      "$HOME/.opencode/bin/opencode" \
+      "$HOME/.local/bin/opencode" \
+      "$HOME/.bun/bin/opencode" \
+      "/opt/homebrew/bin/opencode" \
+      "/usr/local/bin/opencode"; do
+      if [[ -x "$candidate" ]]; then
+        opencode_bin="$candidate"
+        break
+      fi
+    done
+  fi
   "$python_bin" - "$plugin_stage/mcp_config.json" "$python_bin" "$plugin_target/mcp/opencode_mcp.py" "$opencode_bin" <<'PY'
 import json
 import sys

@@ -51,7 +51,7 @@ class Job:
 
 
 JOBS: dict[str, Job] = {}
-LOG_ROOT = Path(tempfile.gettempdir()) / "xz-opencode-mcp"
+LOG_ROOT = Path(tempfile.gettempdir()) / f"xz-opencode-mcp-{os.getuid() if hasattr(os, 'getuid') else 'user'}"
 
 
 def _git_status_lines(workdir: str) -> set[str] | None:
@@ -355,6 +355,7 @@ def _handle_opencode_run(args: dict[str, Any], opencode_bin: str) -> tuple[dict[
         return {"error": str(exc)}, True
 
     job_id = uuid.uuid4().hex[:12]
+    LOG_ROOT.mkdir(parents=True, exist_ok=True, mode=0o700)
     job_dir = LOG_ROOT / job_id
     job_dir.mkdir(parents=True, exist_ok=True)
     events_path = job_dir / "events.jsonl"
@@ -665,7 +666,16 @@ def _handle_request(msg: dict[str, Any], opencode_bin: str) -> dict[str, Any] | 
 def _ensure_standard_paths() -> None:
     current = os.environ.get("PATH", "")
     parts = [p for p in current.split(os.pathsep) if p]
-    for extra in ("/opt/homebrew/bin", "/usr/local/bin"):
+    home = Path.home()
+    extra_dirs = (
+        str(home / ".opencode" / "bin"),
+        str(home / ".local" / "bin"),
+        str(home / ".bun" / "bin"),
+        str(home / ".cargo" / "bin"),
+        "/opt/homebrew/bin",
+        "/usr/local/bin",
+    )
+    for extra in extra_dirs:
         if os.path.isdir(extra) and extra not in parts:
             parts.append(extra)
     os.environ["PATH"] = os.pathsep.join(parts)
